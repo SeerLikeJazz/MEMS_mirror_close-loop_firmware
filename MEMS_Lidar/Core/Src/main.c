@@ -30,22 +30,13 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h" 
-#include "M8266HostIf.h"
-#include "M8266WIFIDrv.h"
-#include "M8266WIFI_ops.h"
-#include "brd_cfg.h"
-
 #include "ADS1299_Library.h"
 #include "lwrb.h"
-#include "BatterySpy.h"
 #include "soft_timer.h"
 #include "Led.h"
-#include "StandbyMode.h"
-#include "drv_SI4432.h"
 #include "Debug.h"
 #include "usbd_cdc_if.h"
 
-#include "icm_twi_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,43 +50,20 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-Sensor_DataTypedef IMU_Data={0};
-/* 32导固件版本*/
-uint8_t version32[10]={"30.11.23"};
+
+/* 固件版本*/
+uint8_t version32[10]={"13.12.23"};
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
 /**ADC*/
-volatile uint8_t Charging_Flag;
 //uint16_t AD_Value[50] __attribute__ ((at(0x30000000)));//SRAM1
-uint8_t ADC_Cplt_Flag = 0;
-uint8_t ADC_Cplt_1st_Flag = 1;
 
-/** WIFI */
+/** 单次数据发送长度 */
 #define TEST_SEND_DATA_SIZE   1024
 uint8_t  snd_data[TEST_SEND_DATA_SIZE];
-volatile u32 sent = 0;
-volatile u32 total_sent = 0, MBytes = 0; 
-volatile u8 debug_point;
-
-#define  RECV_DATA_MAX_SIZE  2048    
-u8  RecvData[RECV_DATA_MAX_SIZE]; 
-
-
-//static size_t liner_block_len;
-
-u8 link_no;
-u8 connection_type;
-u8 connection_state;
-u16 local_port;
-u8 remote_ip[16];
-u16 remote_port;
-u16 status;
-u8 Tstate;
-
-uint8_t WIFI_RcvFlag;
 /*--BT121、USB CDC公共资源部分--*/
 		static size_t full_len;
 		/** Ringbuf */
@@ -119,10 +87,6 @@ uint8_t WIFI_RcvFlag;
     uint8_t Mode_stop[8]={0x55,0x66,0x4D,0x4F,0x44,0x45,0x52,0x0A};
         /**当前工作状态*/
         uint8_t FT232_EEGstate;//"Z","W","S","T","R"
-    /*电量选项*/
-    uint8_t Batt_inquiry[8]={0x55,0x66,0x42,0x41,0x54,0x54,0x42,0x0A};//0x42 0x41 0x54 0x54 = BATT
-        /**电量查询标志位*/
-        uint8_t FT232_BATTflag;
     /*断开连接*/
     uint8_t FT232_disconnect[8]={0x55,0x66,0x44,0x49,0x53,0x43,0x01,0x0A};//0x44 0x49 0x53 0x43 = DISC
         /**当前断开连接标志位*/
@@ -144,47 +108,6 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void M8266WIFI_Test(void);
-
-void bleblinky_timeout_handler(void *argv, uint16_t argc)
-{
-    wifi_led_toggle();
-}
-
-static uint8_t OldState_Connected = 0;//过去的WIFI连接状态，0：连接断开   1：连接
-static uint8_t NowState_Connected = 0;//当前的WIFI连接状态，0：连接断开   1：连接
-uint8_t TimeupFlag_2S;
-void period_task_timeout_handler(void *argv, uint16_t argc)
-{
-		TimeupFlag_2S = 1;
-}
-
-//static uint16_t T_10ms_cnt = 0;
-//void charging_timeout_handler(void *argv, uint16_t argc)
-//{
-//    if(HAL_GPIO_ReadPin(WKUP_GPIO_Port, WKUP_Pin) == GPIO_PIN_SET) {
-//        T_10ms_cnt++;
-//        if(T_10ms_cnt > 5) {
-//            if(HAL_GPIO_ReadPin(PGOOD_GPIO_Port, PGOOD_Pin) == GPIO_PIN_RESET) {
-//                /*充电状态*/
-//                T_10ms_cnt = 0;
-//                softTimer_Stop(TMR_SHUTDOWN_CHARGING);
-//                Charging_Flag = 1;
-//            }
-//        }
-//        if(T_10ms_cnt > 195) {
-//            /*关机状态*/
-//            T_10ms_cnt = 0;
-//            softTimer_Stop(TMR_SHUTDOWN_CHARGING);
-//            StandbyMode_Measure();
-//        }
-//    }
-//    else {
-//        T_10ms_cnt = 0;
-//        softTimer_Stop(TMR_SHUTDOWN_CHARGING);
-//    }
-
-//}
 
 extern uint8_t usb_rx_data[20];
 uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
@@ -227,7 +150,7 @@ void rx_commd()
             }
             Transmission_form = FT232Wire;
 						HAL_GPIO_WritePin(EN_DCDC_GPIO_Port, EN_DCDC_Pin, GPIO_PIN_RESET);//关闭wifi电源
-						wifi_led_off();//wifi指示灯关闭
+//						wifi_led_off();//wifi指示灯关闭
             FT232_EEGstate = 'R';//连接之后ADS1299停止运行
         }
 
@@ -258,11 +181,6 @@ void rx_commd()
                         break;
                     default:;
                 }//end of switch
-            }
-            /**电量查询msg*/
-            if(memcmp(Batt_inquiry,usb_rx_data,8) == 0 ){
-                FT232_BATTflag = 1;
-                CDC_Transmit_FS(usb_rx_data, 8);//Echo
             }
             /**断开连接msg*/
             if(memcmp(FT232_disconnect,usb_rx_data,8) == 0 ){
@@ -299,7 +217,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-TestPhaseCal();
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -314,16 +232,7 @@ TestPhaseCal();
   MX_USB_DEVICE_Init();
 //  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
-    /*充电器插入检测*/
-//    uint32_t Boot_timestamp = HAL_GetTick();
-//    while((HAL_GetTick() - Boot_timestamp) < 1400) {
-//        if(HAL_GPIO_ReadPin(PGOOD_GPIO_Port, PGOOD_Pin) == GPIO_PIN_RESET) {
-//            ChargingState();
-//        }
-//        if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0) == GPIO_PIN_RESET)  {  //检测到按键抬起
-//            StandbyMode_Measure();//不是开机，进入待机模式
-//        }
-//    }
+
 		/*EXTI0中断使能*/
 		__HAL_GPIO_EXTI_CLEAR_IT(WKUP_Pin);
 		NVIC_ClearPendingIRQ(EXTI0_IRQn);		
@@ -384,7 +293,7 @@ TestPhaseCal();
             /**断开连接msg*/
             if(FT232_DISCflag){
                 FT232_DISCflag = 0;//清空
-                Transmission_form = M8266Wireless;
+//                Transmission_form = M8266Wireless;
                 ADS_state_choose(STOP,SAMPLE_RATE_500);//进入低功耗模式										
 								/*测试解决bug：wifi重启前屏蔽中断*/
 								HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);																		
@@ -393,15 +302,7 @@ TestPhaseCal();
 								NVIC_ClearPendingIRQ(EXTI9_5_IRQn);
 							
 								HAL_GPIO_WritePin(EN_DCDC_GPIO_Port, EN_DCDC_Pin, GPIO_PIN_SET);//打开wifi电源
-								HAL_Delay(100);
-//								{//wifi模块初始化
-//									u8 success=0;
-//									success = M8266WIFI_Module_Init_Via_SPI();
-//									if(success == 0) {
-//											while(1);
-//										}		
-//									M8266WIFI_Test();		
-//								}									
+								HAL_Delay(100);								
 								wifi_led_on();//wifi指示灯亮
 								/*测试解决bug：wifi重启后使能中断*/
 								HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);//SI4432 GDO0中断之后打开
@@ -478,7 +379,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-uint8_t g_SI4432RxBuffer[64];
+
 /**
  * 外部引脚中断
  * */
@@ -490,36 +391,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     {
        updateBoardData();
     }
-    /*电源开关中断*/
-//    if(GPIO_Pin == WKUP_Pin) {
-//        softTimer_Start(TMR_SHUTDOWN_CHARGING, MODE_PERIODIC, 10, charging_timeout_handler, NULL, 0);//button按下时间计时
-//    }
 		
 }
 
 
-/**
-*systick毫秒级中断
-*/
-void HAL_SYSTICK_Callback(void)
-{
-    softTimer_Update();
-}
-
-
-//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
-//{
-//    /**开机时运行一次*/
-//    if(ADC_Cplt_1st_Flag == 0){
-//        ADC_Cplt_Flag = 1;
-//    }
-//    else{
-//        ADC_Cplt_1st_Flag = 0;
-//        HAL_ADC_Stop_DMA(&hadc1);
-//        bat_capacity_1st();
-//        HAL_ADC_Start_DMA(&hadc1, (uint32_t *)AD_Value, ADCLength);//ADC循环模式开启
-//    }
-//}
 /* USER CODE END 4 */
 
 /**

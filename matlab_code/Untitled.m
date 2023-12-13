@@ -1,9 +1,9 @@
 % 定义向量 v1 和 v2
-% v1 = normalize(signal1(1:40));
-% v2 = normalize(signal2(1:40));
-v1 = signal1(1:40);
+v1 = normalize(signal1(1:40));
+v2 = normalize(signal2(1:40));
+% v1 = signal1(1:40);
 % v1scaleFactor = 1/ max(v1);
-v2 = signal2(1:40);
+% v2 = signal2(1:40);
 % v2scaleFactor = 1/ max(v2);
 % 计算向量的点积
 dot_product = dot(v1, v2);

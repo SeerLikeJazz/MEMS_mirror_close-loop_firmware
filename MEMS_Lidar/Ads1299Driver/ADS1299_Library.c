@@ -404,8 +404,9 @@ uint8_t eCon_Checksum(uint8_t *content,uint8_t len);
   * @brief  更新两片ADS1299的数据
   * @retval None
   */
+#define LENGTH_PhaseArray   50
 int boardChannelDataInt[2];
-float32_t PhaseArray[2][50];
+float32_t TPhaseArray[2][LENGTH_PhaseArray];
 uint8_t Index_PhaseArray = 0;
 float32_t angle_rad;
 
@@ -443,41 +444,13 @@ void updateBoardData(void)
         {
             boardChannelDataInt[i] &= 0x00FFFFFF;
         }
-				PhaseArray[i][Index_PhaseArray] = (float32_t)boardChannelDataInt[i];
+				TPhaseArray[i][Index_PhaseArray] = (float32_t)boardChannelDataInt[i];
 
     }
 		Index_PhaseArray++;
-		if(Index_PhaseArray == 50) {
+		if(Index_PhaseArray == LENGTH_PhaseArray) {
 			Index_PhaseArray = 0;
-			// 对信号进行归一化处理
-			float32_t maxValue;
-			arm_max_f32(&(PhaseArray[0]), 50, &maxValue,0); // 获取信号的最大值
-
-			// 将信号归一化到 [0, 1] 范围内
-			float32_t scaleFactor = 1.0f / maxValue;
-			arm_scale_f32(&(PhaseArray[0]), scaleFactor, &(PhaseArray[0]), 50);		
-			
-			arm_max_f32(&(PhaseArray[1]), 50, &maxValue,0); // 获取信号的最大值
-			scaleFactor = 1.0f / maxValue;
-			arm_scale_f32(&(PhaseArray[1]), scaleFactor, &(PhaseArray[1]), 50);		
-
-			// 计算两个向量的点积
-			float32_t dotProduct;
-			arm_dot_prod_f32(&(PhaseArray[0]), &(PhaseArray[1]), 50, &dotProduct);		
-			
-			// 计算信号的平方和			
-			float32_t squareSum1, squareSum2;
-			arm_power_f32(&(PhaseArray[0]), 50, &squareSum1); 
-			arm_power_f32(&(PhaseArray[1]), 50, &squareSum2);
-			
-			float32_t mul_result;
-			arm_mult_f32(&squareSum1, &squareSum2, &mul_result, 1);
-			
-			float32_t sqrt_result;
-			arm_sqrt_f32(mul_result, &sqrt_result);
-			// 除法	
-			
-			angle_rad = acos(dotProduct/sqrt_result);
+			TestPhaseCal(); 
 			
 		}		
     /**eConScan格式*/
@@ -499,58 +472,68 @@ uint8_t eCon_Checksum(uint8_t *content,uint8_t len)
     return ~result;
 }
 
-float32_t TPhaseArray[2][40] = 
+
+
+
+//float32_t TPhaseArray[2][40] = 
+//{
+//{0,	0.360866623520662,	0.709887598281048,	1.03560611556705,	1.32733028286492,
+//1.57548409121326,	1.77192175305340,	1.91019509226214,	1.98576520913963,	1.99615147233081,
+//1.94101294693709,	1.82215958589509,	1.64349281725918,	1.41087747764335,	1.13194929567902,
+//0.815864244951819,	0.472997994047449,	0.114605319426921,	-0.247549338905888,	-0.601578051727556,
+//-0.935859628521147,	-1.23942108955499,	-1.50229786007989,	-1.71586086306872,	-1.87309977349638,
+//-1.96885313617978,	-1.99997779343119,	-1.96545206096741,	-1.86640926526780,	-1.70610054149872,
+//-1.48978811318324,	-1.22457255677065,	-0.919159721242975,	-0.583574953752702,	-0.228834011995030,
+//0.133418534199903,	0.491291542384855,	0.833037630897356,	1.14743879323345,	1.42417463538573},
+
+//{12.5000000000000,	12.6480534418411,	12.7748341669787,	12.8761805271978,	12.9487657715384,
+//12.9902072487559,	12.9991446191813,	12.9752845086313,	12.9194101385806,	12.8333556164780,
+//12.7199457301445,	12.5829032225324,	12.4267265906059,	12.2565424196622,	12.0779371003014,
+//11.8967734520307,	11.7189982729348,	11.5504471327022,	11.3966528167866,	11.2626637096297,
+//11.1528780786179,	11.0708996984953,	11.0194195554426,	11.0001275139496,	11.0136568460690,
+//11.0595634439066,	11.1363403977116,	11.2414674610317,	11.3714937792127,	11.5221511656329,
+//11.6884942073159,	11.8650626008781,	12.0460603900409,	12.2255462211376,	12.3976283713710,
+//12.5566581479089,	12.6974153093867,	12.8152794232491,	12.9063815340339,	12.9677311639984}
+//};
+float32_t normPhaseArray1[LENGTH_PhaseArray],normPhaseArray2[LENGTH_PhaseArray];
+float32_t degreeValue = 0.0f;
+void TestPhaseCal() //执行时间45 uS
 {
-{0,	0.360866623520662,	0.709887598281048,	1.03560611556705,	1.32733028286492,
-1.57548409121326,	1.77192175305340,	1.91019509226214,	1.98576520913963,	1.99615147233081,
-1.94101294693709,	1.82215958589509,	1.64349281725918,	1.41087747764335,	1.13194929567902,
-0.815864244951819,	0.472997994047449,	0.114605319426921,	-0.247549338905888,	-0.601578051727556,
--0.935859628521147,	-1.23942108955499,	-1.50229786007989,	-1.71586086306872,	-1.87309977349638,
--1.96885313617978,	-1.99997779343119,	-1.96545206096741,	-1.86640926526780,	-1.70610054149872,
--1.48978811318324,	-1.22457255677065,	-0.919159721242975,	-0.583574953752702,	-0.228834011995030,
-0.133418534199903,	0.491291542384855,	0.833037630897356,	1.14743879323345,	1.42417463538573},
-
-{12.5000000000000,	12.6480534418411,	12.7748341669787,	12.8761805271978,	12.9487657715384,
-12.9902072487559,	12.9991446191813,	12.9752845086313,	12.9194101385806,	12.8333556164780,
-12.7199457301445,	12.5829032225324,	12.4267265906059,	12.2565424196622,	12.0779371003014,
-11.8967734520307,	11.7189982729348,	11.5504471327022,	11.3966528167866,	11.2626637096297,
-11.1528780786179,	11.0708996984953,	11.0194195554426,	11.0001275139496,	11.0136568460690,
-11.0595634439066,	11.1363403977116,	11.2414674610317,	11.3714937792127,	11.5221511656329,
-11.6884942073159,	11.8650626008781,	12.0460603900409,	12.2255462211376,	12.3976283713710,
-12.5566581479089,	12.6974153093867,	12.8152794232491,	12.9063815340339,	12.9677311639984}
-};
-float32_t normPhaseArray1[40],normPhaseArray2[40];
-void TestPhaseCal()
-{
-			// 对信号进行归一化处理
-//			float32_t maxValue;
-//			arm_max_f32(&(TPhaseArray[0]), 40, &maxValue,0); // 获取信号的最大值
-
-//			// 将信号归一化到 [0, 1] 范围内
-//			float32_t scaleFactor = 1.0f / maxValue;
-//			arm_scale_f32(&(TPhaseArray[0]), scaleFactor, normPhaseArray1, 40);		
-//			
-//			arm_max_f32(&(TPhaseArray[1]), 40, &maxValue,0); // 获取信号的最大值
-//			scaleFactor = 1.0f / maxValue;
-//			arm_scale_f32(&(TPhaseArray[1]), scaleFactor, normPhaseArray2, 40);		
-
-			// 计算两个向量的点积
-			float32_t dotProduct;
-			arm_dot_prod_f32(&(TPhaseArray[0]), &(TPhaseArray[1]), 40, &dotProduct);		
-			
-			// 计算信号的平方和			
-			float32_t squareSum1, squareSum2;
-			arm_power_f32(&(TPhaseArray[0]), 40, &squareSum1); 
-			arm_power_f32(&(TPhaseArray[1]), 40, &squareSum2);
-			
-			float32_t mul_result;
-			arm_mult_f32(&squareSum1, &squareSum2, &mul_result, 1);
-			
-			float32_t sqrt_result;
-			arm_sqrt_f32(mul_result, &sqrt_result);
-			// 除法	
-			
-			angle_rad = acos(dotProduct/sqrt_result);
+		// 对信号进行归一化处理，按向量返回 A 中数据的 z 值（中心为 0、标准差为 1）
+    // 使用 DSP 库函数计算均值
+		float32_t meanValue = 0.0f, stdValue= 0.0f;
+    arm_mean_f32(&(TPhaseArray[0]), LENGTH_PhaseArray, &meanValue);	
+		arm_std_f32(&(TPhaseArray[0]), LENGTH_PhaseArray, &stdValue);
+		// 对数据进行 Z-score 标准化
+		for (int i = 0; i < LENGTH_PhaseArray; i++) {
+				TPhaseArray[0][i] = (TPhaseArray[0][i] - meanValue) / stdValue;
+		}
+		
+    arm_mean_f32(&(TPhaseArray[1]), LENGTH_PhaseArray, &meanValue);	
+		arm_std_f32(&(TPhaseArray[1]), LENGTH_PhaseArray, &stdValue);
+		for (int i = 0; i < LENGTH_PhaseArray; i++) {
+				TPhaseArray[1][i] = (TPhaseArray[1][i] - meanValue) / stdValue;
+		}
+	
+		// 计算两个向量的点积
+		float32_t dotProduct;
+		arm_dot_prod_f32(&(TPhaseArray[0]), &(TPhaseArray[1]), LENGTH_PhaseArray, &dotProduct);		
+		
+		// 计算信号的平方和			
+		float32_t squareSum1, squareSum2;
+		arm_power_f32(&(TPhaseArray[0]), LENGTH_PhaseArray, &squareSum1); 
+		arm_power_f32(&(TPhaseArray[1]), LENGTH_PhaseArray, &squareSum2);
+		
+		float32_t mul_result;
+		arm_mult_f32(&squareSum1, &squareSum2, &mul_result, 1);
+		
+		float32_t sqrt_result;
+		arm_sqrt_f32(mul_result, &sqrt_result);
+		// 计算弧度				
+		angle_rad = acos(dotProduct/sqrt_result);   
+		// 将弧度转换为度数
+//		float32_t degreeValue = 0.0f;
+		degreeValue = angle_rad * (180.0f / PI);
 
 }
 
